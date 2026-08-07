@@ -1,0 +1,23 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Version>1.2.0.0</Version>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>AetherPress</AssemblyName>
+    <RootNamespace>PenumbraTextureWatcher</RootNamespace>
+    <Description>A Dalamud plugin that optimizes textures in newly installed Penumbra mods.</Description>
+    <Authors>ShaalaXIV</Authors>
+    <PackageProjectUrl>https://github.com/ShaalaXIV/AetherPress</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ShaalaXIV/AetherPress</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <RestoreEnablePackagePruning>false</RestoreEnablePackagePruning>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="AetherPress.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="texconv.exe" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="THIRD_PARTY_NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
