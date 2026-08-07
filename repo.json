@@ -3,7 +3,7 @@
     "Author": "ShaalaXIV",
     "Name": "AetherPress",
     "InternalName": "AetherPress",
-    "AssemblyVersion": "1.2.0.0",
+    "AssemblyVersion": "1.2.1.0",
     "Description": "Detects completed Penumbra mod installations and offers configurable Base, Normal, and Mask texture compression. Use /aetherpress to open settings.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -13,9 +13,9 @@
     "Tags": [ "penumbra", "textures", "compression" ],
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.2.0/AetherPress-1.2.0.zip",
-    "DownloadLinkUpdate": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.2.0/AetherPress-1.2.0.zip",
-    "Changelog": "Initial public release under ShaalaXIV. Adds Penumbra install detection, configurable compression presets, adaptive resolution, protected skin textures, and opt-in automatic optimization.",
-    "LastUpdate": "1786130213"
+    "DownloadLinkInstall": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.2.1/AetherPress-1.2.1.zip",
+    "DownloadLinkUpdate": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.2.1/AetherPress-1.2.1.zip",
+    "Changelog": "Adds the AetherPress logo to the installed plugin manifest so it displays correctly in xlplugins.",
+    "LastUpdate": "1786135328"
   }
 ]
