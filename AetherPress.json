@@ -6,6 +6,7 @@
   "Description": "Detects completed Penumbra mod installations and offers configurable Base, Normal, and Mask texture compression. Use /aetherpress to open settings.",
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/ShaalaXIV/AetherPress",
+  "IconUrl": "https://shaalaxiv.github.io/AetherPress/images/icon.png",
   "Tags": [ "penumbra", "textures", "compression" ],
   "DalamudApiLevel": 15
 }
