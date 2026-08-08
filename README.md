@@ -13,7 +13,7 @@ AetherPress modifies textures inside the Penumbra mod folder, so keep backups of
 Add this URL under **Dalamud Settings → Experimental → Custom Plugin Repositories**:
 
 ```text
-(https://aethercast.org/repo)
+https://aethercast.org/repo
 ```
 
 Development notice: AetherPress is free, non-commercial hobby software created with the assistance of AI. I make no apology for using modern tools to turn weeks/months of development into days and make this project possible.
