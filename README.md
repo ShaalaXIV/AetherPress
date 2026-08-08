@@ -16,6 +16,6 @@ Add this URL under **Dalamud Settings → Experimental → Custom Plugin Reposit
 https://aethercast.org/repo
 ```
 
-Update the version in `AetherPress.csproj` and `repo.json`, update the download links and changelog in `repo.json`, then create a matching `vX.Y.Z` tag. The release workflow builds and attaches `AetherPress-X.Y.Z.zip` to the GitHub release.
+Development notice: AetherPress is free, non-commercial hobby software created with the assistance of AI. I make no apology for using modern tools to turn months of development into days and make this project possible.
 
 AetherPress is licensed under the MIT License. The bundled `texconv.exe` is from Microsoft DirectXTex and is redistributed under its MIT License; see `THIRD_PARTY_NOTICES.txt`.
