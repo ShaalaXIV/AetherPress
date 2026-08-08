@@ -13,7 +13,7 @@ AetherPress modifies textures inside the Penumbra mod folder, so keep backups of
 Add this URL under **Dalamud Settings → Experimental → Custom Plugin Repositories**:
 
 ```text
-https://shaalaxiv.github.io/AetherPress/repo.json
+https://aethercast.org/repo
 ```
 
 Update the version in `AetherPress.csproj` and `repo.json`, update the download links and changelog in `repo.json`, then create a matching `vX.Y.Z` tag. The release workflow builds and attaches `AetherPress-X.Y.Z.zip` to the GitHub release.
