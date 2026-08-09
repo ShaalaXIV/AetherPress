@@ -26,7 +26,13 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        if (string.IsNullOrWhiteSpace(Configuration.PenumbraPath)) Configuration.PenumbraPath = DetectPenumbraPath();
+        var configurationChanged = Configuration.Migrate();
+        if (string.IsNullOrWhiteSpace(Configuration.PenumbraPath))
+        {
+            Configuration.PenumbraPath = DetectPenumbraPath();
+            configurationChanged = true;
+        }
+        if (configurationChanged) PluginInterface.SavePluginConfig(Configuration);
         var texconv = Path.Combine(PluginInterface.AssemblyLocation.DirectoryName!, "texconv.exe");
         Watcher = new TextureWatcher(Configuration, texconv, Log);
         Watcher.NewModDetected += OnNewModDetected;

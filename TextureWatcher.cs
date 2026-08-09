@@ -89,11 +89,17 @@ sealed class TextureWatcher : IDisposable
                 Status = $"[{index + 1}/{modPaths.Count}] Compressing {name}";
                 try
                 {
+                    var bytesBefore = GetTextureBytes(modPath);
                     var progress = new Progress<CompressionProgress>(p => Status = $"[{index + 1}/{modPaths.Count}] {name}: {p.Message}");
                     var result = await CompressionEngine.CompressFolderAsync(modPath, texconvPath, configuration.ToCompressionSettings(), progress, cancellation.Token, configuration.SkipSkinTextures);
-                    succeeded++; LastResult = $"{name}: {result}"; log.Information("{Result}", LastResult);
                     var counts = ParseCounts(result);
-                    if (counts.Compressed > 0) AppendOptimizedDescription(modPath);
+                    var bytesSaved = Math.Max(0, bytesBefore - GetTextureBytes(modPath));
+                    succeeded++;
+                    LastResult = counts.Compressed > 0
+                        ? $"{name}: {result} Saved {CompressionDescription.FormatMegabytes(bytesSaved)} MB."
+                        : $"{name}: {result}";
+                    log.Information("{Result}", LastResult);
+                    if (counts.Compressed > 0) AppendCompressionDescription(modPath, bytesSaved);
                     CompressionCompleted?.Invoke(new CompressionOutcome(name, counts.Compressed, counts.Matching, true, ""));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -117,7 +123,7 @@ sealed class TextureWatcher : IDisposable
             ? (compressed, matching) : (0, 0);
     }
 
-    void AppendOptimizedDescription(string modPath)
+    void AppendCompressionDescription(string modPath, long bytesSaved)
     {
         var metadataPath = Path.Combine(modPath, "meta.json");
         try
@@ -125,17 +131,28 @@ sealed class TextureWatcher : IDisposable
             if (!File.Exists(metadataPath)) return;
             var root = JsonNode.Parse(File.ReadAllText(metadataPath)) as JsonObject;
             if (root is null) return;
-            const string tag = "Optimized by AetherPress";
             var description = root["Description"]?.GetValue<string>() ?? "";
-            if (description.Contains(tag, StringComparison.OrdinalIgnoreCase)) return;
-            root["Description"] = string.IsNullOrWhiteSpace(description) ? tag : description.TrimEnd() + Environment.NewLine + Environment.NewLine + tag;
+            root["Description"] = CompressionDescription.AppendOrUpdate(description, bytesSaved);
             File.WriteAllText(metadataPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            log.Information("Added AetherPress optimization tag to {Metadata}", metadataPath);
+            log.Information("Added AetherPress compression savings to {Metadata}", metadataPath);
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            log.Warning(ex, "Could not update AetherPress optimization tag in {Metadata}", metadataPath);
+            log.Warning(ex, "Could not update AetherPress compression savings in {Metadata}", metadataPath);
         }
+    }
+
+    static long GetTextureBytes(string modPath)
+    {
+        long total = 0;
+        foreach (var path in Directory.EnumerateFiles(modPath, "*", SearchOption.AllDirectories))
+        {
+            var extension = Path.GetExtension(path);
+            if (extension.Equals(".tex", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".dds", StringComparison.OrdinalIgnoreCase))
+                total += new FileInfo(path).Length;
+        }
+        return total;
     }
 
     static bool IsAlreadyOptimized(string modPath)
@@ -147,7 +164,7 @@ sealed class TextureWatcher : IDisposable
             using var document = JsonDocument.Parse(File.ReadAllText(metadataPath));
             return document.RootElement.TryGetProperty("Description", out var description)
                 && description.ValueKind == JsonValueKind.String
-                && (description.GetString() ?? "").Contains("Optimized by AetherPress", StringComparison.OrdinalIgnoreCase);
+                && CompressionDescription.ContainsTag(description.GetString() ?? "");
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { return false; }
     }

@@ -7,9 +7,8 @@ namespace PenumbraTextureWatcher;
 sealed class ConfigWindow : Window, IDisposable
 {
     static readonly string[] Scales = ["4K", "2K", "1K", "512"];
-    static readonly string[] Formats = ["Smart", "BC7", "BC5", "8.8.8.8 BGRA"];
+    static readonly string[] Formats = ["BC7", "BC5", "8.8.8.8 BGRA"];
     static readonly string[] Filters = ["Bilinear", "Bicubic", "Nearest Neighbor"];
-    static readonly string[] Profiles = ["Quality", "Balanced", "Aggressive"];
     readonly Plugin plugin;
     readonly Queue<string> prompts = new();
     string? activePrompt;
@@ -18,7 +17,7 @@ sealed class ConfigWindow : Window, IDisposable
     public ConfigWindow(Plugin plugin) : base("AetherPress###AetherPressSettings")
     {
         this.plugin = plugin;
-        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(600, 390), MaximumSize = new Vector2(float.MaxValue) };
+        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(720, 420), MaximumSize = new Vector2(float.MaxValue) };
     }
 
     public override void Draw()
@@ -30,27 +29,19 @@ sealed class ConfigWindow : Window, IDisposable
 
         ImGui.TextUnformatted("Compression Preset");
         ImGui.Separator(); ImGui.Spacing();
-        if (!PresetMatches(config, config.CompressionPreset)) config.CompressionPreset = "Custom";
-        if (ImGui.BeginTable("PresetCards", 3))
+        if (ImGui.BeginTable("CompressionPresets", 4, ImGuiTableFlags.SizingStretchSame))
         {
-            ImGui.TableNextColumn(); DrawPreset(config, "Quality", "Best visual quality, moderate savings");
-            ImGui.TableNextColumn(); DrawPreset(config, "Balanced", "Strong savings with minimal visible quality loss");
-            ImGui.TableNextColumn(); DrawPreset(config, "Maximum Savings", "More aggressive optimization");
+            DrawPreset(config, "Quality", "Best visual quality with moderate savings", "4K", "4K", "8.8.8.8 BGRA", "2K");
+            DrawPreset(config, "Balanced (Recommended)", "Strong savings with minimal visible quality loss", "2K", "4K", "8.8.8.8 BGRA", "2K");
+            DrawPreset(config, "Smaller Files", "More compression with mild normal-map softening", "2K", "2K", "8.8.8.8 BGRA", "2K");
+            DrawPreset(config, "Maximum Savings", "Smallest tested 2K files; more fine-detail loss", "2K", "2K", "BC7", "2K");
             ImGui.EndTable();
         }
 
         ImGui.Spacing();
-        var smart = config.BaseFormat == "Smart" && config.NormalFormat == "Smart" && config.MaskFormat == "Smart";
-        if (ImGui.Checkbox("Automatically choose the best texture format", ref smart))
-        {
-            if (smart) config.BaseFormat = config.NormalFormat = config.MaskFormat = "Smart";
-            else config.CompressionPreset = "Custom";
-        }
         var skipSkin = config.SkipSkinTextures;
         if (ImGui.Checkbox("Protect skin textures", ref skipSkin)) config.SkipSkinTextures = skipSkin;
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skips redirects to chara/human/ and chara/bibo* found in Penumbra JSON files.");
-        var adaptive = config.AdaptiveResolution;
-        if (ImGui.Checkbox("Adapt texture resolution to image detail", ref adaptive)) config.AdaptiveResolution = adaptive;
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Penumbra folder"); ImGui.SameLine();
@@ -70,22 +61,7 @@ sealed class ConfigWindow : Window, IDisposable
         if (ImGui.Button("Optimize Entire Penumbra Folder...", new Vector2(240, 0))) openCompressAllConfirmation = true;
 
         ImGui.Spacing(); ImGui.Separator(); ImGui.Spacing();
-        if (ImGui.CollapsingHeader("Advanced Settings"))
-        {
-            ImGui.TextWrapped("Preset values can be adjusted below. Changing one marks the preset as Custom.");
-            if (ImGui.BeginTable("CompressionRules", 4))
-            {
-                ImGui.TableSetupColumn("Texture"); ImGui.TableSetupColumn("Maximum Size"); ImGui.TableSetupColumn("Format"); ImGui.TableSetupColumn("Filter");
-                ImGui.TableHeadersRow();
-                var before = (config.BaseScale, config.BaseFormat, config.BaseFilter, config.NormalScale, config.NormalFormat, config.NormalFilter, config.MaskScale, config.MaskFormat, config.MaskFilter);
-                (config.BaseScale, config.BaseFormat, config.BaseFilter) = DrawRule("Base / Diffuse", config.BaseScale, config.BaseFormat, config.BaseFilter);
-                (config.NormalScale, config.NormalFormat, config.NormalFilter) = DrawRule("Normal", config.NormalScale, config.NormalFormat, config.NormalFilter);
-                (config.MaskScale, config.MaskFormat, config.MaskFilter) = DrawRule("Mask", config.MaskScale, config.MaskFormat, config.MaskFilter);
-                var after = (config.BaseScale, config.BaseFormat, config.BaseFilter, config.NormalScale, config.NormalFormat, config.NormalFilter, config.MaskScale, config.MaskFormat, config.MaskFilter);
-                if (before != after) config.CompressionPreset = "Custom";
-                ImGui.EndTable();
-            }
-        }
+        if (ImGui.CollapsingHeader("Advanced Settings")) DrawAdvancedSettings(config);
 
         DrawNewModPrompt();
         DrawCompressAllConfirmation();
@@ -127,6 +103,27 @@ sealed class ConfigWindow : Window, IDisposable
         ImGui.EndPopup();
     }
 
+    static void DrawAdvancedSettings(Configuration config)
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Exact Texture Rules");
+        ImGui.Separator(); ImGui.Spacing();
+        if (ImGui.BeginTable("CompressionRules", 4))
+        {
+            ImGui.TableSetupColumn("Texture"); ImGui.TableSetupColumn("Maximum Size"); ImGui.TableSetupColumn("Format"); ImGui.TableSetupColumn("Filter");
+            ImGui.TableHeadersRow();
+            (config.BaseScale, config.BaseFormat, config.BaseFilter) = DrawRule("Base / Diffuse", config.BaseScale, config.BaseFormat, config.BaseFilter);
+            (config.NormalScale, config.NormalFormat, config.NormalFilter) = DrawRule("Normal", config.NormalScale, config.NormalFormat, config.NormalFilter);
+            (config.MaskScale, config.MaskFormat, config.MaskFilter) = DrawRule("Mask", config.MaskScale, config.MaskFormat, config.MaskFilter);
+            ImGui.EndTable();
+        }
+
+        ImGui.Spacing();
+        ImGui.TextWrapped("Selected sizes are hard maximums; AetherPress never silently chooses a smaller size.");
+        if (config.NormalFormat == "BC5")
+            ImGui.TextWrapped("Warning: BC5 discards channels used by some normal maps and can cause severe visible corruption.");
+    }
+
     static (string Scale, string Format, string Filter) DrawRule(string label, string scale, string format, string filter)
     {
         ImGui.TableNextRow(); ImGui.TableNextColumn(); ImGui.TextUnformatted(label);
@@ -136,42 +133,32 @@ sealed class ConfigWindow : Window, IDisposable
         return (scale, format, filter);
     }
 
-    static void DrawPreset(Configuration config, string name, string description)
+    static void DrawPreset(Configuration config, string name, string description, string baseScale, string normalScale, string normalFormat, string maskScale)
     {
-        var selected = config.CompressionPreset == name;
-        if (ImGui.RadioButton(name, selected)) ApplyPreset(config, name);
-        if (name == "Balanced") { ImGui.SameLine(); ImGui.TextDisabled("Recommended"); }
+        ImGui.TableNextColumn();
+        var selected = MatchesPreset(config, baseScale, normalScale, normalFormat, maskScale);
+        if (ImGui.RadioButton($"{name}##Preset{name}", selected))
+            ApplyPreset(config, baseScale, normalScale, normalFormat, maskScale);
         ImGui.TextWrapped(description);
+        ImGui.Spacing();
     }
 
-    static void ApplyPreset(Configuration config, string name)
-    {
-        config.CompressionPreset = name;
-        config.BaseFormat = config.NormalFormat = config.MaskFormat = "Smart";
-        config.AdaptiveResolution = true;
-        config.BaseFilter = config.NormalFilter = config.MaskFilter = "Bicubic";
-        switch (name)
-        {
-            case "Quality":
-                config.AdaptiveProfile = "Quality"; config.BaseScale = "4K"; config.NormalScale = "4K"; config.MaskScale = "2K"; break;
-            case "Maximum Savings":
-                config.AdaptiveProfile = "Aggressive"; config.BaseScale = "1K"; config.NormalScale = "2K"; config.MaskScale = "1K"; break;
-            default:
-                config.AdaptiveProfile = "Balanced"; config.BaseScale = "2K"; config.NormalScale = "4K"; config.MaskScale = "1K"; break;
-        }
-    }
+    static bool MatchesPreset(Configuration config, string baseScale, string normalScale, string normalFormat, string maskScale) =>
+        config.BaseScale == baseScale && config.BaseFormat == "BC7" && config.BaseFilter == "Bicubic" &&
+        config.NormalScale == normalScale && config.NormalFormat == normalFormat && config.NormalFilter == "Bicubic" &&
+        config.MaskScale == maskScale && config.MaskFormat == "BC7" && config.MaskFilter == "Bicubic";
 
-    static bool PresetMatches(Configuration config, string name)
+    static void ApplyPreset(Configuration config, string baseScale, string normalScale, string normalFormat, string maskScale)
     {
-        if (name == "Custom") return true;
-        if (!config.AdaptiveResolution || config.BaseFormat != "Smart" || config.NormalFormat != "Smart" || config.MaskFormat != "Smart") return false;
-        return name switch
-        {
-            "Quality" => config.AdaptiveProfile == "Quality" && config.BaseScale == "4K" && config.NormalScale == "4K" && config.MaskScale == "2K",
-            "Maximum Savings" => config.AdaptiveProfile == "Aggressive" && config.BaseScale == "1K" && config.NormalScale == "2K" && config.MaskScale == "1K",
-            "Balanced" => config.AdaptiveProfile == "Balanced" && config.BaseScale == "2K" && config.NormalScale == "4K" && config.MaskScale == "1K",
-            _ => false
-        };
+        config.BaseScale = baseScale;
+        config.BaseFormat = "BC7";
+        config.BaseFilter = "Bicubic";
+        config.NormalScale = normalScale;
+        config.NormalFormat = normalFormat;
+        config.NormalFilter = "Bicubic";
+        config.MaskScale = maskScale;
+        config.MaskFormat = "BC7";
+        config.MaskFilter = "Bicubic";
     }
 
     static void Combo(string id, ref string value, string[] choices)

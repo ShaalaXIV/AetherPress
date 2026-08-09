@@ -61,9 +61,7 @@ sealed class CompressionSettings
 {
     public TextureRule Base { get; set; } = new("2K", "BC7", "Bicubic");
     public TextureRule Normal { get; set; } = new("4K", "8.8.8.8 BGRA", "Bicubic");
-    public TextureRule Mask { get; set; } = new("1K", "BC7", "Bicubic");
-    public bool AdaptiveResolution { get; set; }
-    public string AdaptiveProfile { get; set; } = "Quality";
+    public TextureRule Mask { get; set; } = new("2K", "BC7", "Bicubic");
 }
 
 sealed record TextureRule(string Scale, string Format, string Filter);
