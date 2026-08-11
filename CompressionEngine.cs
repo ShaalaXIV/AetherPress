@@ -28,6 +28,7 @@ static class CompressionEngine
         var stage = Path.Combine(Path.GetTempPath(), "organizer-compression", Guid.NewGuid().ToString("N"));
         var outputs = new List<(string Staged, string Original)>();
         var failures = new List<string>();
+        var skipped = new List<string>();
         Directory.CreateDirectory(stage);
         try
         {
@@ -39,8 +40,13 @@ static class CompressionEngine
                 progress?.Report(new CompressionProgress(i, candidates.Count, $"Analyzing {relative}"));
                 try
                 {
-                    var info = ReadInfo(item.Path);
-                    if (info is null) throw new InvalidDataException("Texture header could not be read.");
+                    var info = ReadUsableInfo(item.Path, out var skipReason);
+                    if (info is null)
+                    {
+                        skipped.Add($"{relative}: {skipReason}");
+                        progress?.Report(new CompressionProgress(i, candidates.Count, $"Skipped {relative}: {skipReason}"));
+                        continue;
+                    }
                     var rule = item.Kind switch { TextureKind.Base => settings.Base, TextureKind.Normal => settings.Normal, _ => settings.Mask };
                     var maxSide = rule.Scale switch { "4K" => 4096, "2K" => 2048, "1K" => 1024, _ => 512 };
                     var format = ResolveFormat(rule.Format);
@@ -64,8 +70,9 @@ static class CompressionEngine
                 throw new InvalidOperationException("Stopped before applying changes:\n" + string.Join("\n", failures.Select(failure => "- " + failure)));
 
             foreach (var output in outputs) File.Copy(output.Staged, output.Original, true);
-            progress?.Report(new CompressionProgress(candidates.Count, candidates.Count, $"Compressed {outputs.Count} texture(s)."));
-            return $"Compressed {outputs.Count} of {candidates.Count} matching texture(s).";
+            var skippedSummary = skipped.Count == 0 ? "" : $" Skipped {skipped.Count} unreadable, unsupported, or abnormal texture(s).";
+            progress?.Report(new CompressionProgress(candidates.Count, candidates.Count, $"Compressed {outputs.Count} texture(s).{skippedSummary}"));
+            return $"Compressed {outputs.Count} of {candidates.Count} matching texture(s).{skippedSummary}";
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }
@@ -202,6 +209,33 @@ static class CompressionEngine
         var scale = (double)max / sourceMax;
         return (Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
     }
+    static TextureInfo? ReadUsableInfo(string path, out string reason)
+    {
+        TextureInfo? info;
+        try { info = ReadInfo(path); }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            reason = "texture header could not be read";
+            return null;
+        }
+        if (info is null)
+        {
+            reason = "texture header could not be read";
+            return null;
+        }
+        if (info.Width < 1 || info.Height < 1 || info.Width > 16384 || info.Height > 16384 || info.Mips < 1 || info.Mips > 15)
+        {
+            reason = "texture dimensions or mip count are abnormal";
+            return null;
+        }
+        if (info.Format == DdsFormat.Unknown)
+        {
+            reason = "texture format is unsupported";
+            return null;
+        }
+        reason = "";
+        return info;
+    }
     static TextureInfo? ReadInfo(string path) => Path.GetExtension(path).Equals(".tex", StringComparison.OrdinalIgnoreCase) ? FfxivTexBridge.ReadInfo(path) : DdsReader.Read(path);
 }
 
@@ -211,6 +245,8 @@ static class DdsReader
     public static TextureInfo? Read(string path)
     {
         var dds = ReadRaw(path);
+        if (dds is not null && dds.Format != DdsFormat.Unknown
+            && new FileInfo(path).Length < dds.DataOffset + TopMipSize(dds.Width, dds.Height, dds.Format)) return null;
         return dds is null ? null : new(dds.Width, dds.Height, dds.Mips, dds.Format, dds.Name, TextureContainer.Dds);
     }
     public static DdsInfo? ReadRaw(string path)
@@ -233,6 +269,13 @@ static class DdsReader
         return new(width, height, mips, DdsFormat.Unknown, "Legacy DDS", 128, 0);
     }
     public static DdsFormat Map(uint dxgi) => dxgi switch { 71 or 72 => DdsFormat.Bc1, 83 or 84 => DdsFormat.Bc5, 87 or 91 => DdsFormat.Bgra, 98 or 99 => DdsFormat.Bc7, _ => DdsFormat.Unknown };
+    static long TopMipSize(int width, int height, DdsFormat format) => format switch
+    {
+        DdsFormat.Bc1 => (long)Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * 8,
+        DdsFormat.Bc5 or DdsFormat.Bc7 => (long)Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * 16,
+        DdsFormat.Bgra => (long)width * height * 4,
+        _ => 0
+    };
 }
 
 static class FfxivTexBridge
@@ -243,6 +286,7 @@ static class FfxivTexBridge
     {
         var h = ReadHeader(path); if (h is null) return null;
         var format = h.Value.Format switch { Bc1 => DdsFormat.Bc1, Bc5 => DdsFormat.Bc5, Bgra => DdsFormat.Bgra, Bc7 => DdsFormat.Bc7, _ => DdsFormat.Unknown };
+        if (format != DdsFormat.Unknown && new FileInfo(path).Length < HeaderSize + MipSize(h.Value.Width, h.Value.Height, format)) return null;
         return new(h.Value.Width, h.Value.Height, h.Value.Mips, format, $"TEX_0x{h.Value.Format:X4}", TextureContainer.FfxivTex);
     }
     public static bool TryWriteDds(string tex, string dds, out string error)
