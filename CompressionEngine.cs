@@ -245,8 +245,11 @@ static class DdsReader
     public static TextureInfo? Read(string path)
     {
         var dds = ReadRaw(path);
-        if (dds is not null && dds.Format != DdsFormat.Unknown
-            && new FileInfo(path).Length < dds.DataOffset + TopMipSize(dds.Width, dds.Height, dds.Format)) return null;
+        if (dds is not null && dds.Format != DdsFormat.Unknown)
+        {
+            if (dds.Width < 1 || dds.Height < 1 || dds.Width > 16384 || dds.Height > 16384 || dds.Mips < 1 || dds.Mips > 15) return null;
+            if (new FileInfo(path).Length < dds.DataOffset + MipChainSize(dds.Width, dds.Height, dds.Mips, dds.Format)) return null;
+        }
         return dds is null ? null : new(dds.Width, dds.Height, dds.Mips, dds.Format, dds.Name, TextureContainer.Dds);
     }
     public static DdsInfo? ReadRaw(string path)
@@ -269,13 +272,23 @@ static class DdsReader
         return new(width, height, mips, DdsFormat.Unknown, "Legacy DDS", 128, 0);
     }
     public static DdsFormat Map(uint dxgi) => dxgi switch { 71 or 72 => DdsFormat.Bc1, 83 or 84 => DdsFormat.Bc5, 87 or 91 => DdsFormat.Bgra, 98 or 99 => DdsFormat.Bc7, _ => DdsFormat.Unknown };
-    static long TopMipSize(int width, int height, DdsFormat format) => format switch
+    static long MipChainSize(int width, int height, int mips, DdsFormat format)
     {
-        DdsFormat.Bc1 => (long)Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * 8,
-        DdsFormat.Bc5 or DdsFormat.Bc7 => (long)Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * 16,
-        DdsFormat.Bgra => (long)width * height * 4,
-        _ => 0
-    };
+        long total = 0;
+        for (var mip = 0; mip < mips; mip++)
+        {
+            var mipWidth = Math.Max(1, width >> mip);
+            var mipHeight = Math.Max(1, height >> mip);
+            total += format switch
+            {
+                DdsFormat.Bc1 => (long)Math.Max(1, (mipWidth + 3) / 4) * Math.Max(1, (mipHeight + 3) / 4) * 8,
+                DdsFormat.Bc5 or DdsFormat.Bc7 => (long)Math.Max(1, (mipWidth + 3) / 4) * Math.Max(1, (mipHeight + 3) / 4) * 16,
+                DdsFormat.Bgra => (long)mipWidth * mipHeight * 4,
+                _ => 0
+            };
+        }
+        return total;
+    }
 }
 
 static class FfxivTexBridge
@@ -286,7 +299,7 @@ static class FfxivTexBridge
     {
         var h = ReadHeader(path); if (h is null) return null;
         var format = h.Value.Format switch { Bc1 => DdsFormat.Bc1, Bc5 => DdsFormat.Bc5, Bgra => DdsFormat.Bgra, Bc7 => DdsFormat.Bc7, _ => DdsFormat.Unknown };
-        if (format != DdsFormat.Unknown && new FileInfo(path).Length < HeaderSize + MipSize(h.Value.Width, h.Value.Height, format)) return null;
+        if (format != DdsFormat.Unknown && new FileInfo(path).Length < HeaderSize + MipChainSize(h.Value.Width, h.Value.Height, h.Value.Mips, format)) return null;
         return new(h.Value.Width, h.Value.Height, h.Value.Mips, format, $"TEX_0x{h.Value.Format:X4}", TextureContainer.FfxivTex);
     }
     public static bool TryWriteDds(string tex, string dds, out string error)
@@ -331,4 +344,21 @@ static class FfxivTexBridge
         DdsFormat.Bc5 or DdsFormat.Bc7 => Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * 16,
         DdsFormat.Bgra => width * height * 4, _ => 0
     };
+    static long MipChainSize(int width, int height, int mips, DdsFormat format)
+    {
+        long total = 0;
+        for (var mip = 0; mip < mips; mip++)
+        {
+            var mipWidth = Math.Max(1, width >> mip);
+            var mipHeight = Math.Max(1, height >> mip);
+            total += format switch
+            {
+                DdsFormat.Bc1 => (long)Math.Max(1, (mipWidth + 3) / 4) * Math.Max(1, (mipHeight + 3) / 4) * 8,
+                DdsFormat.Bc5 or DdsFormat.Bc7 => (long)Math.Max(1, (mipWidth + 3) / 4) * Math.Max(1, (mipHeight + 3) / 4) * 16,
+                DdsFormat.Bgra => (long)mipWidth * mipHeight * 4,
+                _ => 0
+            };
+        }
+        return total;
+    }
 }
