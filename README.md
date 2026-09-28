@@ -2,6 +2,8 @@ Ever install one cute outfit and discover it brought enough oversized textures t
 
 AetherPress keeps an eye on new Penumbra installs and offers to slim down their textures before they start eating your drive space and VRAM. Choose Quality, Balanced (Recommended), Smaller Files, or Maximum Savings—or fine-tune base, normal, and mask textures under Advanced Settings.
 
+You can optimize newly installed mods, select one existing mod from a searchable list, or process your entire Penumbra folder.
+
 The presets were measured on real 4K FFXIV textures. Selected resolutions are hard maximums, so AetherPress never silently chooses a smaller, more destructive size. Skin-texture protection remains available, and automatic optimization is opt-in; by default, AetherPress asks before touching anything.
 
 After a successful compression, AetherPress adds the actual space saved to the bottom of the mod description, for example: `Compressed by AetherPress — Saved 129.38 MB`.

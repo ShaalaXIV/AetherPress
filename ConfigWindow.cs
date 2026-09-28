@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 
@@ -11,7 +12,14 @@ sealed class ConfigWindow : Window, IDisposable
     static readonly string[] Filters = ["Bilinear", "Bicubic", "Nearest Neighbor"];
     readonly Plugin plugin;
     readonly Queue<string> prompts = new();
+    readonly List<ExistingModChoice> existingMods = [];
     string? activePrompt;
+    string? selectedExistingModPath;
+    string? pendingExistingModPath;
+    string existingModFilter = "";
+    string loadedPenumbraPath = "";
+    string existingModsMessage = "";
+    bool openExistingModConfirmation;
     bool openCompressAllConfirmation;
 
     public ConfigWindow(Plugin plugin) : base("AetherPress###AetherPressSettings")
@@ -57,13 +65,19 @@ sealed class ConfigWindow : Window, IDisposable
         if (ImGui.RadioButton("Ask before optimizing", !automatic)) config.AutomaticallyCompressNewMods = false;
         ImGui.SameLine();
         if (ImGui.RadioButton("Optimize automatically", automatic)) config.AutomaticallyCompressNewMods = true;
+
+        ImGui.Spacing(); ImGui.Separator(); ImGui.Spacing();
+        DrawExistingModPicker(config);
+
         ImGui.Spacing();
+        ImGui.TextUnformatted("All Existing Mods");
         if (ImGui.Button("Optimize Entire Penumbra Folder...", new Vector2(240, 0))) openCompressAllConfirmation = true;
 
         ImGui.Spacing(); ImGui.Separator(); ImGui.Spacing();
         if (ImGui.CollapsingHeader("Advanced Settings")) DrawAdvancedSettings(config);
 
         DrawNewModPrompt();
+        DrawExistingModConfirmation();
         DrawCompressAllConfirmation();
     }
 
@@ -88,6 +102,138 @@ sealed class ConfigWindow : Window, IDisposable
         }
         ImGui.SameLine();
         if (ImGui.Button("No", new Vector2(110, 0))) { activePrompt = null; ImGui.CloseCurrentPopup(); }
+        ImGui.EndPopup();
+    }
+
+    void DrawExistingModPicker(Configuration config)
+    {
+        if (!string.Equals(loadedPenumbraPath, config.PenumbraPath, StringComparison.OrdinalIgnoreCase))
+            RefreshExistingMods(config.PenumbraPath);
+
+        ImGui.TextUnformatted("Existing Mod");
+        ImGui.TextWrapped("Choose one mod already installed in Penumbra and optimize only that mod using the current settings.");
+        ImGui.Spacing();
+
+        ImGui.TextUnformatted("Find"); ImGui.SameLine();
+        ImGui.SetNextItemWidth(-100);
+        ImGui.InputText("##ExistingModFilter", ref existingModFilter, 256);
+        ImGui.SameLine();
+        if (ImGui.Button("Refresh##ExistingMods")) RefreshExistingMods(config.PenumbraPath);
+
+        var selected = existingMods.FirstOrDefault(mod => string.Equals(mod.Path, selectedExistingModPath, StringComparison.OrdinalIgnoreCase));
+        var preview = selected?.DisplayName ?? "Select an installed mod...";
+        ImGui.SetNextItemWidth(-1);
+        if (ImGui.BeginCombo("##ExistingModSelection", preview))
+        {
+            var visibleCount = 0;
+            foreach (var mod in existingMods)
+            {
+                if (!MatchesExistingModFilter(mod, existingModFilter)) continue;
+                visibleCount++;
+                var isSelected = string.Equals(mod.Path, selectedExistingModPath, StringComparison.OrdinalIgnoreCase);
+                if (ImGui.Selectable($"{mod.DisplayName}##{mod.Path}", isSelected)) selectedExistingModPath = mod.Path;
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Folder: {mod.FolderName}");
+                if (isSelected) ImGui.SetItemDefaultFocus();
+            }
+            if (visibleCount == 0) ImGui.TextDisabled("No matching installed mods.");
+            ImGui.EndCombo();
+        }
+
+        if (!string.IsNullOrWhiteSpace(existingModsMessage)) ImGui.TextDisabled(existingModsMessage);
+        ImGui.BeginDisabled(selected is null);
+        if (ImGui.Button("Optimize Selected Mod...", new Vector2(220, 0)) && selected is not null)
+        {
+            pendingExistingModPath = selected.Path;
+            openExistingModConfirmation = true;
+        }
+        ImGui.EndDisabled();
+    }
+
+    void RefreshExistingMods(string penumbraPath)
+    {
+        existingMods.Clear();
+        loadedPenumbraPath = penumbraPath;
+        existingModsMessage = "";
+
+        if (!Directory.Exists(penumbraPath))
+        {
+            selectedExistingModPath = null;
+            existingModsMessage = "Penumbra folder not found. Check the folder above and save settings.";
+            return;
+        }
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(penumbraPath))
+            {
+                var metadataPath = Path.Combine(directory, "meta.json");
+                if (!File.Exists(metadataPath)) continue;
+                var folderName = Path.GetFileName(directory);
+                var modName = ReadModName(metadataPath) ?? folderName;
+                existingMods.Add(new ExistingModChoice(modName, folderName, Path.GetFullPath(directory)));
+            }
+            existingMods.Sort((left, right) =>
+            {
+                var nameOrder = StringComparer.OrdinalIgnoreCase.Compare(left.DisplayName, right.DisplayName);
+                return nameOrder != 0 ? nameOrder : StringComparer.OrdinalIgnoreCase.Compare(left.FolderName, right.FolderName);
+            });
+
+            if (selectedExistingModPath is not null
+                && !existingMods.Any(mod => string.Equals(mod.Path, selectedExistingModPath, StringComparison.OrdinalIgnoreCase)))
+                selectedExistingModPath = null;
+            existingModsMessage = existingMods.Count == 0
+                ? "No installed Penumbra mods were found."
+                : $"{existingMods.Count} installed mod(s) found.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            selectedExistingModPath = null;
+            existingModsMessage = "Installed mods could not be read. Check access to the Penumbra folder.";
+        }
+    }
+
+    static string? ReadModName(string metadataPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(metadataPath));
+            if (!document.RootElement.TryGetProperty("Name", out var name) || name.ValueKind != JsonValueKind.String) return null;
+            var value = name.GetString();
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    static bool MatchesExistingModFilter(ExistingModChoice mod, string filter) =>
+        string.IsNullOrWhiteSpace(filter)
+        || mod.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+        || mod.FolderName.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    void DrawExistingModConfirmation()
+    {
+        if (openExistingModConfirmation)
+        {
+            ImGui.OpenPopup("Optimize selected mod?");
+            openExistingModConfirmation = false;
+        }
+        var open = true;
+        if (!ImGui.BeginPopupModal("Optimize selected mod?", ref open, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        var selected = existingMods.FirstOrDefault(mod => string.Equals(mod.Path, pendingExistingModPath, StringComparison.OrdinalIgnoreCase));
+        var name = selected?.DisplayName ?? Path.GetFileName(pendingExistingModPath);
+        ImGui.TextWrapped($"Optimize \"{name}\" using the current preset and skin-protection setting?");
+        if (ImGui.Button("Optimize This Mod", new Vector2(160, 0)))
+        {
+            var path = pendingExistingModPath;
+            pendingExistingModPath = null;
+            ImGui.CloseCurrentPopup();
+            if (path is not null) _ = plugin.Watcher.CompressModAsync(path);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(110, 0)))
+        {
+            pendingExistingModPath = null;
+            ImGui.CloseCurrentPopup();
+        }
         ImGui.EndPopup();
     }
 
@@ -171,4 +317,6 @@ sealed class ConfigWindow : Window, IDisposable
     }
 
     public void Dispose() { }
+
+    sealed record ExistingModChoice(string DisplayName, string FolderName, string Path);
 }
