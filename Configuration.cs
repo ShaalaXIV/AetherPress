@@ -10,6 +10,7 @@ public sealed class Configuration : IPluginConfiguration
     public int Version { get; set; } = CurrentVersion;
     public string PenumbraPath { get; set; } = "";
     public bool AutomaticallyCompressNewMods { get; set; } = false;
+    public bool AutomaticallyCompressEquippedItems { get; set; } = false;
     public bool SkipSkinTextures { get; set; } = true;
     public string BaseScale { get; set; } = "2K";
     public string BaseFormat { get; set; } = "BC7";

@@ -1,11 +1,11 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>1.3.7.0</Version>
+    <Version>1.3.8.0</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>AetherPress</AssemblyName>
     <RootNamespace>PenumbraTextureWatcher</RootNamespace>
-    <Description>A Dalamud plugin that optimizes textures in newly installed Penumbra mods.</Description>
+    <Description>A Dalamud plugin that optimizes textures in installed and equipped Penumbra mods.</Description>
     <Authors>ShaalaXIV</Authors>
     <PackageProjectUrl>https://github.com/ShaalaXIV/AetherPress</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ShaalaXIV/AetherPress</RepositoryUrl>

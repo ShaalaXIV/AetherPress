@@ -66,6 +66,13 @@ sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         if (ImGui.RadioButton("Optimize automatically", automatic)) config.AutomaticallyCompressNewMods = true;
 
+        ImGui.Spacing();
+        var equippedItems = config.AutomaticallyCompressEquippedItems;
+        if (ImGui.Checkbox("Automatically optimize equipped glamour items", ref equippedItems))
+            config.AutomaticallyCompressEquippedItems = equippedItems;
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("When your appearance changes, finds the Penumbra mods supplying your equipped textures and optimizes each newly seen mod once. Skin protection still applies.");
+
         ImGui.Spacing(); ImGui.Separator(); ImGui.Spacing();
         DrawExistingModPicker(config);
 

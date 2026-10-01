@@ -69,10 +69,27 @@ sealed class TextureWatcher : IDisposable
     public Task CompressAllAsync() => CompressManyAsync(Directory.Exists(configuration.PenumbraPath)
         ? Directory.EnumerateDirectories(configuration.PenumbraPath).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToList()
         : [], "Penumbra library");
+    public Task CompressEquippedModsAsync(IReadOnlyList<string> modPaths) => CompressManyAsync(
+        modPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+        "equipped item mods",
+        waitForTurn: true,
+        skipTaggedMods: false,
+        notifyUnchanged: false);
 
-    async Task CompressManyAsync(IReadOnlyList<string> modPaths, string scope)
+    async Task CompressManyAsync(
+        IReadOnlyList<string> modPaths,
+        string scope,
+        bool waitForTurn = false,
+        bool skipTaggedMods = true,
+        bool notifyUnchanged = true)
     {
-        if (!await compressionLock.WaitAsync(0)) { Status = "Compression is already running"; return; }
+        if (waitForTurn)
+            await compressionLock.WaitAsync(cancellation.Token);
+        else if (!await compressionLock.WaitAsync(0))
+        {
+            Status = "Compression is already running";
+            return;
+        }
         try
         {
             var succeeded = 0; var failed = 0;
@@ -80,7 +97,7 @@ sealed class TextureWatcher : IDisposable
             {
                 cancellation.Token.ThrowIfCancellationRequested();
                 var modPath = modPaths[index]; var name = Path.GetFileName(modPath);
-                if (IsAlreadyOptimized(modPath))
+                if (skipTaggedMods && IsAlreadyOptimized(modPath))
                 {
                     Status = $"[{index + 1}/{modPaths.Count}] Skipped already optimized: {name}";
                     log.Information("Skipping {Mod} because its metadata is tagged Optimized by AetherPress", name);
@@ -100,7 +117,8 @@ sealed class TextureWatcher : IDisposable
                         : $"{name}: {result}";
                     log.Information("{Result}", LastResult);
                     if (counts.Compressed > 0) AppendCompressionDescription(modPath, bytesSaved);
-                    CompressionCompleted?.Invoke(new CompressionOutcome(name, counts.Compressed, counts.Matching, true, ""));
+                    if (counts.Compressed > 0 || notifyUnchanged)
+                        CompressionCompleted?.Invoke(new CompressionOutcome(name, counts.Compressed, counts.Matching, true, ""));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

@@ -3,19 +3,19 @@
     "Author": "ShaalaXIV",
     "Name": "AetherPress",
     "InternalName": "AetherPress",
-    "AssemblyVersion": "1.3.7.0",
-    "Description": "Detects completed Penumbra mod installations and offers configurable Base, Normal, and Mask texture compression. Use /aetherpress to open settings.",
+    "AssemblyVersion": "1.3.8.0",
+    "Description": "Detects completed Penumbra mod installations and can optimize the mods supplying your equipped glamour textures. Offers configurable Base, Normal, and Mask texture compression with optional skin protection. Use /aetherpress to open settings.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
-    "Punchline": "Automatically compress textures in newly installed Penumbra mods.",
+    "Punchline": "Automatically compress textures in installed and equipped Penumbra mods.",
     "RepoUrl": "https://github.com/ShaalaXIV/AetherPress",
     "IconUrl": "https://shaalaxiv.github.io/AetherPress/images/icon.png",
     "Tags": [ "penumbra", "textures", "compression" ],
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.3.7/AetherPress-1.3.7.zip",
-    "DownloadLinkUpdate": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.3.7/AetherPress-1.3.7.zip",
-    "Changelog": "Skips textures with incomplete or nonstandard mip payloads before conversion, preventing those files from failing the entire mod.",
-    "LastUpdate": "1790637285"
+    "DownloadLinkInstall": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.3.8/AetherPress-1.3.8.zip",
+    "DownloadLinkUpdate": "https://github.com/ShaalaXIV/AetherPress/releases/download/v1.3.8/AetherPress-1.3.8.zip",
+    "Changelog": "Adds optional automatic optimization for the Penumbra mods supplying your currently equipped glamour textures. It waits for glamour changes to settle, processes each detected mod once per session, and respects your selected preset and skin protection setting.",
+    "LastUpdate": "1790843366"
   }
 ]

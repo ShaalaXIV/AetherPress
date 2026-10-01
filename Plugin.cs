@@ -19,6 +19,7 @@ public sealed class Plugin : IDalamudPlugin
 
     internal Configuration Configuration { get; }
     internal TextureWatcher Watcher { get; }
+    readonly EquippedTextureMonitor equippedTextureMonitor;
     readonly WindowSystem windows = new("PenumbraTextureWatcher");
     readonly ConfigWindow configWindow;
     readonly ICallGateSubscriber<string, object?> penumbraModAdded;
@@ -37,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
         Watcher = new TextureWatcher(Configuration, texconv, Log);
         Watcher.NewModDetected += OnNewModDetected;
         Watcher.CompressionCompleted += OnCompressionCompleted;
+        equippedTextureMonitor = new EquippedTextureMonitor(Configuration, Watcher, PluginInterface, Log);
         penumbraModAdded = PluginInterface.GetIpcSubscriber<string, object?>("Penumbra.ModAdded");
         penumbraModAdded.Subscribe(Watcher.HandlePenumbraModAdded);
         configWindow = new ConfigWindow(this); windows.AddWindow(configWindow);
@@ -49,7 +51,7 @@ public sealed class Plugin : IDalamudPlugin
 
     internal void SaveAndRestart()
     {
-        PluginInterface.SavePluginConfig(Configuration); Watcher.Restart();
+        PluginInterface.SavePluginConfig(Configuration); Watcher.Restart(); equippedTextureMonitor.Restart();
     }
 
     readonly Queue<string> newModPrompts = new();
@@ -59,6 +61,7 @@ public sealed class Plugin : IDalamudPlugin
     void OnCompressionCompleted(CompressionOutcome outcome) { lock (promptLock) compressionNotifications.Enqueue(outcome); }
     void DrainNewModPrompts()
     {
+        equippedTextureMonitor.Update();
         string? path = null;
         CompressionOutcome? outcome = null;
         lock (promptLock)
@@ -107,6 +110,6 @@ public sealed class Plugin : IDalamudPlugin
         Watcher.NewModDetected -= OnNewModDetected;
         Watcher.CompressionCompleted -= OnCompressionCompleted;
         PluginInterface.UiBuilder.Draw -= DrainNewModPrompts; PluginInterface.UiBuilder.Draw -= windows.Draw; PluginInterface.UiBuilder.OpenConfigUi -= configWindow.Toggle; PluginInterface.UiBuilder.OpenMainUi -= configWindow.Toggle;
-        CommandManager.RemoveHandler(Command); windows.RemoveAllWindows(); configWindow.Dispose(); Watcher.Dispose();
+        CommandManager.RemoveHandler(Command); windows.RemoveAllWindows(); configWindow.Dispose(); equippedTextureMonitor.Dispose(); Watcher.Dispose();
     }
 }
